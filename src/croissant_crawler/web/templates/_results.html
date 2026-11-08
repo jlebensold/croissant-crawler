@@ -1,0 +1,63 @@
+{% if error %}
+  <div class="notice err">{{ error }}</div>
+{% elif results %}
+<div class="layout">
+  <aside class="facets" aria-label="Filters">
+    {% for f in results.facets %}
+    <div class="facet">
+      <h3>{{ f.label }}</h3>
+      {% for v in f["values"] %}
+      <label>
+        <input type="checkbox" name="{{ f.field }}" value="{{ v.value }}" {{ 'checked' if v.selected }}>
+        <span class="v">{% if f.field == 'quality_tier' %}<span class="tier {{ v.value }}" style="min-width:1.2rem;height:1.2rem;font-size:.7rem">{{ v.value }}</span>{% else %}{{ v.value }}{% endif %}</span>
+        <span class="n">{{ v.count|num }}</span>
+      </label>
+      {% endfor %}
+    </div>
+    {% endfor %}
+  </aside>
+  <section class="results-list">
+    <div class="result-meta">
+      <span><b>{{ results.found|num }}</b> datasets{% if req.q %} for “{{ req.q }}”{% endif %} · {{ results.search_time_ms }} ms</span>
+      {% if req.filters %}<a href="/?q={{ req.q|urlencode }}">Clear filters</a>{% endif %}
+    </div>
+    {% for h in results.hits %}
+    <article class="card result">
+      <div>
+        <h2>
+          <a href="/datasets/{{ h.id }}">{{ h.name_html|safe }}</a>
+          <span class="badge src {{ h.source }}">{{ h.source }}</span>
+        </h2>
+        <div class="ext">{{ h.external_id.split('|')[-1] }}</div>
+        <p>{{ h.snippet_html|safe }}</p>
+      </div>
+      <div class="side">
+        <span class="tier {{ h.quality_tier }}" title="Metadata quality {{ h.quality_score }}/100">{{ h.quality_tier }}</span>
+        <span>{{ h.quality_score|round|int }}/100</span>
+        {% if h.popularity %}<span title="Downloads reported by the source">↓ {{ h.popularity|num }}</span>{% endif %}
+      </div>
+      <div class="foot">
+        <span class="status-dot {{ h.validation_status }}" title="{{ h.validation_status }}"></span>
+        {% for t in h.tasks[:3] %}<span class="chip task">{{ t }}</span>{% endfor %}
+        {% for m in h.modalities[:3] %}<span class="chip">{{ m }}</span>{% endfor %}
+        {% for d in (h.domains or [])[:2] %}<span class="chip">{{ d }}</span>{% endfor %}
+        <span class="chip">{{ h.license }}</span>
+        {% if h.vector_distance is not none and req.q %}<span class="faint small" title="cosine distance to the query embedding">semantic {{ (1 - h.vector_distance)|round(2) }}</span>{% endif %}
+      </div>
+    </article>
+    {% else %}
+    <div class="empty card">No datasets match. Try fewer filters{% if not req.semantic %} or enable semantic matching{% endif %}.</div>
+    {% endfor %}
+    {% if results.pages > 1 %}
+    <nav class="pager" aria-label="Pagination">
+      {% set p = results.page %}
+      {% if p > 1 %}<button class="btn small" name="page" value="{{ p - 1 }}">← Prev</button>{% endif %}
+      {% for n in range([1, p - 2]|max, [results.pages, p + 2]|min + 1) %}
+        <button class="btn small" name="page" value="{{ n }}" {% if n == p %}aria-current="page"{% endif %}>{{ n }}</button>
+      {% endfor %}
+      {% if p < results.pages %}<button class="btn small" name="page" value="{{ p + 1 }}">Next →</button>{% endif %}
+    </nav>
+    {% endif %}
+  </section>
+</div>
+{% endif %}

@@ -1,0 +1,160 @@
+{% extends "base.html" %}
+{% block title %}{{ ds.name }} · {{ settings.web_title }}{% endblock %}
+{% block content %}
+{% set enr = ds.enrichment.output if ds.enrichment else {} %}
+{% set extra = ds.extra or {} %}
+<div class="ds-head">
+  <div style="min-width:0;flex:1">
+    <div class="row small muted" style="margin-bottom:.35rem">
+      <a href="/">Search</a> <span>/</span> <span class="badge src {{ ds.source_id }}">{{ ds.source_id }}</span>
+      <span class="mono">{{ ds.external_id.split('|')[-1] }}</span>
+    </div>
+    <h1>{{ ds.name }}</h1>
+    <div class="row">
+      {% if ds.landing_url %}<a class="btn small" href="{{ ds.landing_url }}" target="_blank" rel="noopener">Open on {{ ds.source_id }} ↗</a>{% endif %}
+      <a class="btn small" href="/api/datasets/{{ ds.link_id }}/croissant" target="_blank">Croissant JSON-LD</a>
+      <a class="btn small" href="{{ ds.croissant_url }}" target="_blank" rel="noopener">Upstream URL ↗</a>
+      <a class="btn small" href="/graph?focus=dataset:{{ ds.link_id }}">Explore in graph</a>
+    </div>
+  </div>
+  {% set ring = {'A':'var(--tier-A)','B':'var(--tier-B)','C':'var(--tier-C)','D':'var(--tier-D)','F':'var(--tier-F)'}[ds.quality_tier] %}
+  <div class="row" style="gap:1rem">
+    <div class="score-ring" style="--p: {{ ds.quality_score }}; --ring: {{ ring }}" title="Metadata quality score">
+      <div><span><b>{{ ds.quality_score|round|int }}</b><br><small>quality</small></span></div>
+    </div>
+    <div class="small">
+      <div><span class="tier {{ ds.quality_tier }}">{{ ds.quality_tier }}</span> tier</div>
+      <div class="row" style="margin-top:.35rem"><span class="status-dot {{ ds.validation_status }}"></span> {{ ds.validation_status|replace('_',' ') }}</div>
+      <div class="muted">Croissant {{ ds.croissant_version or '?' }}</div>
+    </div>
+  </div>
+</div>
+
+<div class="ds-grid">
+  <div class="stack">
+    {% if enr.summary %}
+    <div class="card pad ai">
+      <div class="label">AI summary · {{ ds.enrichment.model }}</div>
+      <p style="margin:.35rem 0 .6rem">{{ enr.summary }}</p>
+      <div class="chips">
+        {% for t in enr.tasks %}<span class="chip task">{{ t }}</span>{% endfor %}
+        {% for m in enr.modalities %}<span class="chip">{{ m }}</span>{% endfor %}
+        {% for d in enr.domains %}<span class="chip">{{ d }}</span>{% endfor %}
+        {% for l in enr.languages[:8] %}<span class="chip">lang:{{ l }}</span>{% endfor %}
+        {% if enr.is_test_or_placeholder %}<span class="chip" style="color:var(--err)">placeholder / test</span>{% endif %}
+      </div>
+      {% if enr.quality_flags %}<div class="small muted" style="margin-top:.5rem">Flags: {{ enr.quality_flags|join(', ') }}</div>{% endif %}
+    </div>
+    {% endif %}
+
+    <section class="card pad">
+      <div class="section-title"><h2>Description</h2><span class="small faint">{{ ds.description|length }} chars</span></div>
+      {% if ds.description %}<pre class="desc">{{ ds.description }}</pre>{% else %}<p class="muted">No description provided.</p>{% endif %}
+      {% if ds.keywords %}<div class="chips" style="margin-top:.8rem">{% for k in ds.keywords[:40] %}<a class="chip" href="/?q={{ k|urlencode }}">{{ k }}</a>{% endfor %}</div>{% endif %}
+    </section>
+
+    <section class="card pad">
+      <div class="section-title"><h2>Structure</h2><span class="small faint">{{ ds.num_record_sets }} record sets · {{ ds.num_fields }} fields · {{ ds.num_files }} files</span></div>
+      {% for rs in ds.record_sets %}
+      <details class="rs" {{ 'open' if loop.first }}>
+        <summary><b>{{ rs.name }}</b> <span class="faint small">{{ rs.n_fields }} fields</span>{% if rs.description %} <span class="muted small">— {{ rs.description[:140] }}</span>{% endif %}</summary>
+        <div class="table-wrap"><table class="data">
+          <thead><tr><th>Field</th><th>Type</th><th>Description</th></tr></thead>
+          <tbody>{% for f in rs.fields %}<tr><td class="mono">{{ f.name }}</td><td class="mono small">{{ f.type or '—' }}</td><td class="small muted">{{ f.description or '' }}</td></tr>{% endfor %}</tbody>
+        </table></div>
+      </details>
+      {% else %}<p class="muted">No record sets declared.</p>{% endfor %}
+      {% if ds.files %}
+      <h3 style="margin-top:1rem">Distribution</h3>
+      <div class="table-wrap"><table class="data">
+        <thead><tr><th>Type</th><th>Name</th><th>Format</th><th class="num">Size</th><th>Checksum</th></tr></thead>
+        <tbody>{% for f in ds.files %}<tr>
+          <td class="small">{{ f.type }}</td>
+          <td class="mono small">{% if f.url and f.url.startswith('http') %}<a href="{{ f.url }}" target="_blank" rel="noopener">{{ (f.name or f.url)[:60] }}</a>{% else %}{{ (f.name or f.includes)[:60] }}{% endif %}</td>
+          <td class="small">{{ f.format }}</td><td class="num small">{{ f.size or '—' }}</td><td class="small">{{ '✓' if f.checksum else '—' }}</td>
+        </tr>{% endfor %}</tbody>
+      </table></div>
+      {% endif %}
+    </section>
+
+    <section class="card pad">
+      <div class="section-title"><h2>Validation</h2><span class="small faint">{{ ds.validator_version }} · {{ ds.duration_ms }} ms</span></div>
+      {% if ds.errors %}<h3 style="color:var(--err)">{{ ds.errors|length }} error(s)</h3><ul class="msgs">{% for e in ds.errors %}<li>{{ e }}</li>{% endfor %}</ul>{% endif %}
+      {% if ds.warnings %}<h3 style="color:var(--warn);margin-top:.6rem">{{ ds.warnings|length }} warning(s)</h3><ul class="msgs">{% for w in ds.warnings %}<li>{{ w }}</li>{% endfor %}</ul>{% endif %}
+      {% if not ds.errors and not ds.warnings %}<p class="muted">Passes <a href="https://github.com/mlcommons/croissant" target="_blank" rel="noopener">mlcroissant</a> validation with no errors or warnings.</p>{% endif %}
+    </section>
+
+    {% set rel = ds.related %}
+    {% if similar or rel %}
+    <section class="card pad">
+      <h2>Related datasets</h2>
+      <div class="grid cols-2" style="margin-top:.6rem">
+        {% if rel.SAME_AS %}<div><h3>Also published as</h3><ul class="timeline">{% for r in rel.SAME_AS %}<li><a href="/datasets/{{ r.id.split(':')[1] }}">{{ r.label }}</a><span class="badge src {{ r.props.source }}">{{ r.props.source }}</span></li>{% endfor %}</ul></div>{% endif %}
+        {% if rel.DERIVED_FROM %}<div><h3>Derived from</h3><ul class="timeline">{% for r in rel.DERIVED_FROM %}<li>{% if r.ntype == 'dataset' %}<a href="/datasets/{{ r.id.split(':')[1] }}">{{ r.label }}</a>{% else %}<a href="/?q={{ r.label|urlencode }}">{{ r.label }}</a> <span class="faint small">not crawled</span>{% endif %}</li>{% endfor %}</ul></div>{% endif %}
+        {% if rel.DERIVATIVES %}<div><h3>Derivatives</h3><ul class="timeline">{% for r in rel.DERIVATIVES %}<li><a href="/datasets/{{ r.id.split(':')[1] }}">{{ r.label }}</a></li>{% endfor %}</ul></div>{% endif %}
+        {% if similar %}<div><h3>Semantically similar</h3><ul class="timeline">{% for s in similar %}<li><a href="/datasets/{{ s.id }}">{{ s.name }}</a><span class="row"><span class="badge src {{ s.source }}">{{ s.source }}</span><span class="faint small">{{ s.score }}</span></span></li>{% endfor %}</ul></div>{% endif %}
+      </div>
+    </section>
+    {% endif %}
+  </div>
+
+  <aside class="stack">
+    <section class="card pad">
+      <h2>Quality breakdown</h2>
+      {% for name, c in (ds.quality_breakdown.categories or {}).items() %}
+      <div style="margin:.55rem 0">
+        <div class="row between small"><span>{{ name|replace('_',' ')|capitalize }}</span><span class="mono">{{ c.score|round(1) }}/{{ c.max|int }}</span></div>
+        <div class="meter"><span style="width: {{ (100 * c.score / c.max) if c.max else 0 }}%"></span></div>
+      </div>
+      {% endfor %}
+      <details style="margin-top:.6rem"><summary class="small">All {{ (ds.quality_breakdown.checks or [])|length }} checks</summary>
+        <ul class="checks" style="margin-top:.4rem">
+          {% for c in ds.quality_breakdown.checks or [] %}
+          {% set cls = 'pass' if c.score >= c.weight else ('fail' if c.score == 0 else 'partial') %}
+          <li><span>{{ c.label }}</span><span class="{{ cls }} mono">{{ c.score }}/{{ c.weight|int }}</span></li>
+          {% endfor %}
+        </ul>
+      </details>
+    </section>
+
+    <section class="card pad">
+      <h2>Metadata</h2>
+      <dl class="kv">
+        <dt>License</dt><dd><b>{{ ds.license }}</b>{% if ds.license_raw and ds.license_raw != ds.license %}<div class="faint small">{{ ds.license_raw[:120] }}</div>{% endif %}</dd>
+        <dt>Creators</dt><dd>{% for c in ds.creators[:6] %}{{ c.name }}{{ ', ' if not loop.last }}{% else %}—{% endfor %}</dd>
+        {% if extra.publisher %}<dt>Publisher</dt><dd>{{ extra.publisher }}</dd>{% endif %}
+        {% if enr.organizations %}<dt>Organizations</dt><dd>{{ enr.organizations|join(', ') }}</dd>{% endif %}
+        <dt>Published</dt><dd>{{ ds.date_published|date }}</dd>
+        <dt>Modified</dt><dd>{{ ds.date_modified|date }}</dd>
+        <dt>Version</dt><dd>{{ ds.version or '—' }}</dd>
+        <dt>Size</dt><dd>{{ ds.total_bytes|bytes }}{% if extra.size_category %} <span class="faint">({{ extra.size_category }} rows)</span>{% endif %}</dd>
+        <dt>Formats</dt><dd>{{ ds.encoding_formats[:6]|join(', ') or '—' }}</dd>
+        {% if ds.identifiers.arxiv %}<dt>arXiv</dt><dd>{% for a in ds.identifiers.arxiv %}<a href="https://arxiv.org/abs/{{ a }}" target="_blank" rel="noopener">{{ a }}</a>{{ ', ' if not loop.last }}{% endfor %}</dd>{% endif %}
+        {% if ds.identifiers.doi %}<dt>DOI</dt><dd>{% for d in ds.identifiers.doi[:4] %}<a href="https://doi.org/{{ d }}" target="_blank" rel="noopener">{{ d }}</a>{{ ', ' if not loop.last }}{% endfor %}</dd>{% endif %}
+        {% set sm = ds.source_meta or {} %}
+        {% if sm.get('downloads') is not none %}<dt>Downloads</dt><dd>{{ sm.get('downloads')|num }}{% if sm.get('likes') %} · ♥ {{ sm.get('likes')|num }}{% endif %}{% if sm.get('votes') %} · ▲ {{ sm.get('votes')|num }}{% endif %}</dd>{% endif %}
+        {% if extra.cite_as %}<dt>Cite as</dt><dd class="small mono" style="max-height:6rem;overflow:auto">{{ extra.cite_as[:600] }}</dd>{% endif %}
+      </dl>
+    </section>
+
+    <section class="card pad">
+      <h2>Crawl history</h2>
+      <ul class="timeline">
+        <li><span class="muted">Discovered</span><span title="{{ ds.discovered_at }}">{{ ds.discovered_at|ago }}</span></li>
+        <li><span class="muted">Last seen in listing</span><span>{{ ds.last_seen_at|ago }}</span></li>
+        <li><span class="muted">Last fetched</span><span>{{ ds.last_fetched_at|ago }}</span></li>
+        <li><span class="muted">Last changed</span><span>{{ ds.last_changed_at|ago }}</span></li>
+        <li><span class="muted">Next check</span><span>{{ ds.next_fetch_at|ago }} <span class="faint small">(every {{ ds.recrawl_hours|round|int }}h)</span></span></li>
+        <li><span class="muted">Fetches</span><span>{{ ds.fetch_count }}</span></li>
+      </ul>
+      <h3 style="margin-top:.8rem">Versions ({{ ds.versions|length }})</h3>
+      <ul class="timeline">
+        {% for v in ds.versions %}
+        <li><a class="mono small" href="/api/documents/{{ v.id }}" target="_blank">{{ v.sha256[:12] }}</a>
+            <span class="small"><span class="status-dot {{ v.status }}"></span> {{ v.fetched_at|date }} · {{ v.size_bytes|bytes }}</span></li>
+        {% endfor %}
+      </ul>
+    </section>
+  </aside>
+</div>
+{% endblock %}

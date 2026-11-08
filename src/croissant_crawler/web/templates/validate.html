@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+{% block title %}Validate · {{ settings.web_title }}{% endblock %}
+{% block content %}
+<h1>Validate a Croissant file</h1>
+<p class="muted">Runs the same checks as the crawler: JSON-LD shape, <code>mlcroissant</code> spec validation and the quality rubric. Nothing is stored.</p>
+<div class="grid cols-2" style="align-items:start">
+  <form class="card pad stack" method="post" action="/validate">
+    <label class="small muted" for="url">Croissant URL (JSON-LD, or an HTML page embedding it)</label>
+    <input type="url" id="url" name="url" value="{{ url or '' }}" placeholder="https://huggingface.co/api/datasets/ylecun/mnist/croissant" style="width:100%">
+    <label class="small muted" for="document">…or paste the JSON-LD</label>
+    <textarea id="document" name="document" placeholder='{"@context": …, "@type": "sc:Dataset", …}'>{{ document or '' }}</textarea>
+    <div class="row"><button class="btn primary">Validate</button>
+      {% if report and report.ok and url %}<button class="btn" type="button" onclick="submitToIndex(event)">Add to index</button>{% endif %}
+    </div>
+    <div id="submit-result" class="small"></div>
+  </form>
+  <div>
+    {% if report %}
+      {% if not report.ok %}
+      <div class="notice err">{{ report.error }}</div>
+      {% else %}
+      <div class="card pad stack">
+        <div class="row between">
+          <div class="row"><span class="tier {{ report.quality_tier }}">{{ report.quality_tier }}</span><b style="font-size:1.3rem">{{ report.quality_score }}</b><span class="muted">/ 100</span></div>
+          <div class="row small"><span class="status-dot {{ report.status }}"></span>{{ report.status|replace('_',' ') }} · Croissant {{ report.croissant_version or '?' }} · {{ report.duration_ms }} ms</div>
+        </div>
+        {% if report.dataset %}<div><b>{{ report.dataset.name }}</b> <span class="muted small">{{ report.dataset.license }} · {{ report.dataset.num_record_sets }} record sets · {{ report.dataset.num_fields }} fields · {{ report.dataset.num_files }} files</span></div>{% endif %}
+        {% for name, c in (report.breakdown.categories or {}).items() %}
+        <div><div class="row between small"><span>{{ name|replace('_',' ')|capitalize }}</span><span class="mono">{{ c.score|round(1) }}/{{ c.max|int }}</span></div>
+        <div class="meter"><span style="width: {{ (100 * c.score / c.max) if c.max else 0 }}%"></span></div></div>
+        {% endfor %}
+        <ul class="checks">
+          {% for c in report.breakdown.checks or [] %}{% set cls = 'pass' if c.score >= c.weight else ('fail' if c.score == 0 else 'partial') %}
+          <li><span>{{ c.label }}</span><span class="{{ cls }} mono">{{ c.score }}/{{ c.weight|int }}</span></li>{% endfor %}
+        </ul>
+        {% if report.errors %}<h3 style="color:var(--err)">Errors</h3><ul class="msgs">{% for e in report.errors %}<li>{{ e }}</li>{% endfor %}</ul>{% endif %}
+        {% if report.warnings %}<h3 style="color:var(--warn)">Warnings</h3><ul class="msgs">{% for w in report.warnings %}<li>{{ w }}</li>{% endfor %}</ul>{% endif %}
+      </div>
+      {% endif %}
+    {% else %}
+      <div class="card pad muted small">Results appear here. Tip: the CLI does the same offline — <code>croissant-crawler validate file.json</code>.</div>
+    {% endif %}
+  </div>
+</div>
+<script>
+async function submitToIndex(ev) {
+  ev.preventDefault();
+  const out = document.getElementById('submit-result');
+  out.textContent = 'Fetching and indexing…';
+  const r = await fetch('/api/submit', {method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({url: document.getElementById('url').value})});
+  const j = await r.json();
+  out.innerHTML = r.ok ? `Indexed as <a href="/datasets/${j.link_id}">dataset ${j.link_id}</a>.` : `Failed: ${j.detail || r.status}`;
+}
+</script>
+{% endblock %}

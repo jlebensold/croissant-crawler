@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block title %}About · {{ settings.web_title }}{% endblock %}
+{% block content %}
+<div style="max-width:760px" class="stack">
+  <h1>About this index</h1>
+  <p><a href="https://mlcommons.org/croissant/" target="_blank" rel="noopener">Croissant</a> is the MLCommons metadata format for ML datasets (JSON-LD on top of schema.org). Hugging Face, Kaggle, OpenML and Dataverse all publish it. This index crawls those platforms, keeps every version of every Croissant file, validates it, scores its metadata quality, enriches it with an LLM and links everything into a knowledge graph.</p>
+  <div class="card pad">
+    <h2>Pipeline</h2>
+    <ol class="small">
+      <li><b>Repos → links.</b> Source adapters page through each platform's listing API and upsert Croissant URLs into a crawl frontier, with first-seen / last-seen timestamps and upstream revision markers.</li>
+      <li><b>Fetch.</b> Polite, rate-limited fetches (per-source Temporal task queues + per-host token buckets, <code>Retry-After</code>, circuit breakers). Unchanged upstream revisions are skipped; revisit intervals adapt to how often a dataset changes.</li>
+      <li><b>Validate.</b> JSON parse → Croissant shape → <code>mlcroissant</code> spec validation → a transparent 100-point quality rubric (tiers A–F).</li>
+      <li><b>Croissant store.</b> Immutable, content-addressed versions (SHA-256 of canonical JSON) in Postgres; exportable as JSON Lines.</li>
+      <li><b>Index.</b> Typesense full-text + facets + built-in sentence embeddings for semantic and hybrid search.</li>
+      <li><b>LLM.</b> Summaries, controlled-vocabulary tasks / modalities / domains, organisations, lineage and placeholder detection via OpenRouter, grounded against the source text and cached by content hash.</li>
+      <li><b>Graph.</b> Datasets linked to sources, organisations, licenses, tasks, modalities, domains, papers, lineage (DERIVED_FROM), cross-platform duplicates (SAME_AS) and embedding neighbours (SIMILAR_TO).</li>
+    </ol>
+  </div>
+  <div class="card pad">
+    <h2>Quality score</h2>
+    <p class="small">Validity 25 · Descriptive metadata 30 · Distribution 20 · Structure 15 · Responsible AI 10. Documents with spec errors are capped at 49 and placed in tier F. Every score links to its per-check breakdown.</p>
+  </div>
+  <p class="small muted">JSON API: <a href="/docs">/docs</a>. Data export: <code>croissant-crawler export</code>. Graph export: <a href="/api/graph/export">/api/graph/export</a>.</p>
+</div>
+{% endblock %}

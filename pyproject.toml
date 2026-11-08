@@ -1,0 +1,56 @@
+[project]
+name = "croissant-crawler"
+version = "0.1.0"
+description = "Crawl, validate, enrich and index ML Croissant dataset metadata from Hugging Face, OpenML, Kaggle, Dataverse and the open web."
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.12,<3.14"
+dependencies = [
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.32",
+    "jinja2>=3.1",
+    "httpx>=0.28",
+    "psycopg[binary,pool]>=3.2",
+    "pydantic>=2.9",
+    "pydantic-settings>=2.6",
+    "temporalio>=1.9",
+    "mlcroissant>=1.0.17",
+    "typer>=0.15",
+    "orjson>=3.10",
+    "python-multipart>=0.0.18",
+]
+
+[project.scripts]
+croissant-crawler = "croissant_crawler.cli:app"
+
+[dependency-groups]
+dev = [
+    "pytest>=8.3",
+    "pytest-asyncio>=0.25",
+    "respx>=0.22",
+    "ruff>=0.8",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/croissant_crawler"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+testpaths = ["tests"]
+markers = [
+    "integration: needs running Postgres/Typesense (docker compose up)",
+    "network: hits the public internet",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "ASYNC"]
+ignore = ["E501", "B008"]

@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% block title %}Knowledge graph · {{ settings.web_title }}{% endblock %}
+{% block head %}<script src="/static/vendor/cytoscape.min.js" defer></script>{% endblock %}
+{% block content %}
+<div class="row between" style="margin-bottom:.8rem">
+  <div>
+    <h1 style="margin:0">Knowledge graph</h1>
+    <p class="muted small" style="margin:.2rem 0 0">
+      {% for n in gstats.nodes %}{{ n.n|num }} {{ n.type }}{{ ' · ' if not loop.last }}{% endfor %}
+    </p>
+  </div>
+  <div class="row">
+    <button class="btn small" id="btn-overview">Overview</button>
+    <a class="btn small" href="/api/graph/export" target="_blank">Export JSON</a>
+  </div>
+</div>
+<div class="graph-wrap">
+  <div id="cy" data-focus="{{ focus or '' }}" aria-label="Interactive knowledge graph"></div>
+  <aside class="graph-side stack">
+    <div class="card pad">
+      <div class="typeahead">
+        <input type="search" id="node-search" placeholder="Find a dataset, org, task, license…" autocomplete="off" aria-label="Find node">
+        <ul id="node-results" hidden></ul>
+      </div>
+      <p class="small muted" style="margin:.6rem 0 0">Click a node to see details, double-click to expand its neighbours.</p>
+    </div>
+    <div class="card pad">
+      <h3>Node types</h3>
+      <div class="legend" id="legend"></div>
+    </div>
+    <div class="card pad" id="node-detail"><p class="muted small" style="margin:0">Select a node.</p></div>
+  </aside>
+</div>
+{% endblock %}
+{% block scripts %}<script src="/static/graph.js?v={{ version }}" defer></script>{% endblock %}

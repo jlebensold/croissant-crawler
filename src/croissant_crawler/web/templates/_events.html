@@ -1,0 +1,13 @@
+<table class="data">
+  <tbody>
+  {% for e in events %}
+  <tr>
+    <td class="small faint" style="white-space:nowrap">{{ e.at|ago }}</td>
+    <td class="small">{% if e.source_id %}<span class="badge src {{ e.source_id }}">{{ e.source_id }}</span>{% endif %}</td>
+    <td class="small"><b>{{ e.kind }}</b></td>
+    <td class="small">{% if e.link_id and e.name %}{% if e.has_dataset %}<a href="/datasets/{{ e.link_id }}">{{ e.name[:48] }}</a>{% else %}<span class="mono">{{ e.name[:48] }}</span>{% endif %}{% endif %}
+      <span class="faint">{% for k, v in (e.detail or {}).items() %}{% if k not in ('sha256',) %}{{ k }}={{ v if v is not mapping else '…' }} {% endif %}{% endfor %}</span></td>
+  </tr>
+  {% else %}<tr><td class="muted small">No activity yet. Start a pipeline run.</td></tr>{% endfor %}
+  </tbody>
+</table>

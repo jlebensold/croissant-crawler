@@ -1,0 +1,89 @@
+{% extends "base.html" %}
+{% block title %}Crawl · {{ settings.web_title }}{% endblock %}
+{% block content %}
+{% set t = stats.totals %}
+<div class="row between" style="margin-bottom:1rem">
+  <div><h1 style="margin:0">Crawl dashboard</h1><p class="muted small" style="margin:.2rem 0 0">repos → links (+timestamps) → validate → Croissant store → index → LLM → graph</p></div>
+  <a class="btn small" href="{{ settings.temporal_ui_url }}" target="_blank" rel="noopener">Temporal UI ↗</a>
+</div>
+<div class="grid cols-4">
+  <div class="card stat"><div class="label">Links in frontier</div><div class="value">{{ t.links|num }}</div><div class="sub">{{ t.pending|num }} never fetched</div></div>
+  <div class="card stat"><div class="label">Croissant documents</div><div class="value">{{ t.documents|num }}</div><div class="sub">{{ t.datasets|num }} current datasets</div></div>
+  <div class="card stat"><div class="label">Valid</div><div class="value">{{ t.valid|num }}</div><div class="sub">{{ ((100 * t.valid / t.datasets) if t.datasets else 0)|round(1) }}% · avg quality {{ t.avg_quality or '—' }}</div></div>
+  <div class="card stat"><div class="label">Indexed / enriched</div><div class="value">{{ t.indexed|num }}</div><div class="sub">{{ t.enriched|num }} LLM-enriched · ${{ '%.3f'|format(t.llm_cost_usd|float) }}</div></div>
+</div>
+
+<section class="card pad" style="margin-top:1rem">
+  <div class="section-title"><h2>Sources</h2><span class="small faint">last activity {{ t.last_activity|ago }}</span></div>
+  <div class="table-wrap"><table class="data">
+    <thead><tr><th>Source</th><th class="num">Links</th><th class="num">OK</th><th class="num">Pending</th><th class="num">Errors</th><th class="num">404</th><th class="num">Datasets</th><th class="num">Valid</th><th class="num">Avg quality</th><th>Quality tiers</th><th>Last fetch</th></tr></thead>
+    <tbody>
+    {% for s in stats.sources %}
+      {% set tiers = stats.tiers|selectattr('source_id', 'equalto', s.id)|list %}
+      {% set total = tiers|sum(attribute='n') %}
+      <tr>
+        <td><span class="badge src {{ s.id }}">{{ s.id }}</span></td>
+        <td class="num">{{ s.links|num }}</td><td class="num">{{ s.ok|num }}</td><td class="num">{{ s.pending|num }}</td>
+        <td class="num" style="{{ 'color:var(--err)' if s.errors }}">{{ s.errors|num }}</td><td class="num">{{ s.not_found|num }}</td>
+        <td class="num">{{ s.datasets|num }}</td><td class="num">{{ s.valid|num }}</td><td class="num">{{ s.avg_quality or '—' }}</td>
+        <td><div class="bar" title="{% for x in tiers %}{{ x.quality_tier }}: {{ x.n }} {% endfor %}">{% for x in tiers %}<span class="{{ x.quality_tier }}" style="width: {{ 100 * x.n / total }}%"></span>{% endfor %}</div></td>
+        <td class="small">{{ s.last_fetch|ago }}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table></div>
+</section>
+
+<div class="grid cols-2" style="margin-top:1rem">
+  <section class="card pad">
+    <h2>Run the pipeline</h2>
+    {% if settings.enable_admin_actions %}
+    <form hx-post="/crawl/start" hx-target="#start-result" class="stack">
+      <div class="row">{% for s in all_sources %}<label class="row small" style="gap:.3rem"><input type="checkbox" name="sources" value="{{ s }}" {{ 'checked' if s in settings.sources_enabled }}> {{ s }}</label>{% endfor %}</div>
+      <div class="row">
+        <label class="small">Links per source <input type="number" name="limit" value="500" min="1" style="width:7rem"></label>
+        <label class="row small" style="gap:.3rem"><input type="checkbox" name="enrich" checked> LLM enrich</label>
+        <label class="row small" style="gap:.3rem"><input type="checkbox" name="graph" checked> Rebuild graph</label>
+        <button class="btn primary small">Start workflow</button>
+      </div>
+      <div id="start-result"></div>
+    </form>
+    {% else %}<p class="muted">Admin actions are disabled on this deployment.</p>{% endif %}
+    <h3 style="margin-top:1rem">Recent pipeline runs</h3>
+    {% if runs_error %}<p class="small muted">Temporal not reachable: {{ runs_error }}</p>{% endif %}
+    <ul class="timeline">
+      {% for r in runs %}<li><a class="mono small" href="{{ settings.temporal_ui_url }}/namespaces/default/workflows/{{ r.id }}" target="_blank" rel="noopener">{{ r.id }}</a><span class="small">{{ r.status }} · {{ r.start_time|ago }}</span></li>{% else %}<li class="muted small">No runs yet.</li>{% endfor %}
+    </ul>
+  </section>
+  <section class="card pad">
+    <h2>Validation</h2>
+    <table class="data">
+      <thead><tr><th>Status</th><th>Croissant</th><th class="num">Datasets</th></tr></thead>
+      <tbody>{% for s in stats.statuses %}<tr><td><span class="status-dot {{ s.validation_status }}"></span> {{ s.validation_status|replace('_',' ') }}</td><td>{{ s.croissant_version or '?' }}</td><td class="num">{{ s.n|num }}</td></tr>{% endfor %}</tbody>
+    </table>
+    {% if stats.top_errors %}
+    <h3 style="margin-top:1rem">Most common spec errors</h3>
+    <ul class="msgs">{% for e in stats.top_errors %}<li><b>{{ e.n }}×</b> {{ e.err[:180] }}</li>{% endfor %}</ul>
+    {% endif %}
+  </section>
+</div>
+
+<div class="grid cols-2" style="margin-top:1rem">
+  <section class="card pad">
+    <div class="section-title"><h2>Live activity</h2><span class="small faint">refreshes every 5s</span></div>
+    <div hx-get="/crawl/events" hx-trigger="load, every 5s" hx-swap="innerHTML"><p class="muted small">Loading…</p></div>
+  </section>
+  <section class="card pad">
+    <h2>Recent fetch failures</h2>
+    <div class="table-wrap"><table class="data">
+      <thead><tr><th>Link</th><th>Status</th><th>Error</th><th>Retry</th></tr></thead>
+      <tbody>{% for e in errors %}<tr>
+        <td class="small"><span class="badge src {{ e.source_id }}">{{ e.source_id }}</span> <a class="mono" href="{{ e.croissant_url }}" target="_blank" rel="noopener">{{ e.external_id.split('|')[-1][:40] }}</a></td>
+        <td class="small">{{ e.status }}{% if e.http_status %} ({{ e.http_status }}){% endif %}</td>
+        <td class="small muted">{{ (e.last_error or '')[:90] }}</td>
+        <td class="small">{{ e.next_fetch_at|ago }}</td>
+      </tr>{% else %}<tr><td colspan="4" class="muted small">No failures.</td></tr>{% endfor %}</tbody>
+    </table></div>
+  </section>
+</div>
+{% endblock %}

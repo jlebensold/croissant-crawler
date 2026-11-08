@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}{{ settings.web_title }}{% endblock %}</title>
+  <link rel="icon" href="/static/logo.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/static/app.css?v={{ version }}">
+  <script src="/static/vendor/htmx.min.js" defer></script>
+  {% block head %}{% endblock %}
+</head>
+<body>
+  {% set path = request.url.path %}
+  <header class="topbar">
+    <div class="inner">
+      <a class="brand" href="/"><img src="/static/logo.svg" alt="" width="26" height="26">{{ settings.web_title }}</a>
+      <nav class="nav">
+        <a href="/" class="{{ 'active' if path == '/' or path.startswith('/datasets') }}">Search</a>
+        <a href="/graph" class="{{ 'active' if path.startswith('/graph') }}">Graph</a>
+        <a href="/crawl" class="{{ 'active' if path.startswith('/crawl') }}">Crawl</a>
+        <a href="/validate" class="{{ 'active' if path.startswith('/validate') }}">Validate</a>
+        <a href="/about" class="{{ 'active' if path.startswith('/about') }}">About</a>
+      </nav>
+      <span class="spacer"></span>
+      <a class="small muted" href="/docs">API</a>
+    </div>
+  </header>
+  <main class="page">{% block content %}{% endblock %}</main>
+  <footer class="site">
+    <span>Croissant Crawler v{{ version }}</span>
+    <span>Metadata in the <a href="https://mlcommons.org/croissant/" target="_blank" rel="noopener">MLCommons Croissant</a> format, crawled from public platforms.</span>
+  </footer>
+  {% block scripts %}{% endblock %}
+</body>
+</html>
